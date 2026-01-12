@@ -1,3 +1,18 @@
 FROM node:22-alpine
+
 WORKDIR /app
-CMD ["sh", "-c", "echo 'Gateway Service starting...' && tail -f /dev/null"]
+
+# Copy root package files for workspace installation
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY packages/shared ./packages/shared
+COPY services/gateway ./services/gateway
+
+# Install dependencies from root
+RUN npm install
+
+# Expose the port
+EXPOSE 3000
+
+# Start the gateway service in dev mode
+CMD ["npm", "run", "dev", "-w", "services/gateway"]
