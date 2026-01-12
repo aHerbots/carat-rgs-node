@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------
+  # 1. CORE SERVICES
+  # ----------------------------------------------------------------
+  
+  gateway-service:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - TEMPORAL_ADDRESS=temporal:7233
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    depends_on:
+      - redis
+      - temporal
+    networks:
+      - rgs-network
+
+  game-engine:
+    build:
+      context: ./services/engine
+      dockerfile: Dockerfile.dev
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    deploy:
+      replicas: 2
+    depends_on:
+      - temporal
+    networks:
+      - rgs-network
+
+  wallet-service:
+    build:
+      context: ./services/wallet
+      dockerfile: Dockerfile.dev
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    depends_on:
+      - temporal
+    networks:
+      - rgs-network
+
+  # ----------------------------------------------------------------
+  # 2. INFRASTRUCTURE & PERSISTENCE
+  # ----------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - rgs-network
+
+  # Unified Database (Supabase + Temporal Store)
+  database:
+    image: supabase/postgres:15.1.0.68
+    ports:
+      - "54325:5432"
+    environment:
+      - POSTGRES_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres}
+      # This script will create the temporal database on startup
+      - APP_DB=temporal_db
+    volumes:
+      - database_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - rgs-network
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=${SUPABASE_DB_PASSWORD:-postgres}
+      - POSTGRES_SEEDS=database
+      - DB_NAME=temporal_db
+      - VISIBILITY_DB_NAME=temporal_db
+    depends_on:
+      - database
+    networks:
+      - rgs-network
+
+networks:
+  rgs-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  database_data:

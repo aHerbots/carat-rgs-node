@@ -1,0 +1,27 @@
+{
+  "name": "rgs-node",
+  "version": "1.0.0",
+  "description": "RGS Node Microservices Monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build -ws",
+    "tsc": "tsc -b",
+    "clean": "rimraf dist packages/*/*/dist services/*/dist"
+  },
+  "workspaces": [
+    "services/*",
+    "packages/shared/*"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.0.6",
+    "eslint": "^9.39.2",
+    "prettier": "^3.7.4",
+    "rimraf": "^6.1.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
