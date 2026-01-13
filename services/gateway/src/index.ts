@@ -3,6 +3,7 @@ import websocket from '@fastify/websocket';
 import { createClient } from '@supabase/supabase-js';
 import temporalPlugin from './plugins/temporal.js';
 import healthRoutes from './routes/health.js';
+import spinRoutes from './routes/spin.js';
 
 const fastify = Fastify({
   logger: {
@@ -50,6 +51,7 @@ fastify.addHook('preHandler', async (request, reply) => {
 
 // Register routes
 await fastify.register(healthRoutes);
+await fastify.register(spinRoutes);
 
 const start = async () => {
   try {

@@ -1,0 +1,10 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# We need to install dependencies for the whole monorepo or at least the service
+# But for dev, we can rely on volumes
+COPY package*.json ./
+RUN npm install
+
+CMD ["npm", "run", "dev"]

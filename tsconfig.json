@@ -3,6 +3,10 @@
   "files": [],
   "references": [
     { "path": "packages/shared/types" },
-    { "path": "packages/shared/utils" }
+    { "path": "packages/shared/utils" },
+    { "path": "services/gateway" },
+    { "path": "services/wallet" },
+    { "path": "services/shared-workflows" },
+    { "path": "services/engine" }
   ]
 }

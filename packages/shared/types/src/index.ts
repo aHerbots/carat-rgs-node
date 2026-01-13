@@ -28,7 +28,9 @@ export interface PointsTable {
  * Derived from carat-backend/pkg/api/websocket/message.go (SpinPayload)
  */
 export interface SpinRequest {
+  playerId: string;
   betAmount: number;
+  gameId: string;
 }
 
 /**
@@ -51,4 +53,29 @@ export interface WinLine {
   symbol: number;
   count: number;
   amount: number;
+}
+
+/**
+ * Wallet Transaction types.
+ */
+export type TransactionType = "bet" | "win" | "refund";
+
+/**
+ * Record representing a financial movement.
+ */
+export interface Transaction {
+  id: string;
+  playerId: string;
+  amount: number; // Stored in minor units (e.g., cents)
+  type: TransactionType;
+  referenceId: string; // Workflow ID / Idempotency Key
+  createdAt: string;
+}
+
+/**
+ * Player Balance info.
+ */
+export interface WalletBalance {
+  playerId: string;
+  balance: number;
 }

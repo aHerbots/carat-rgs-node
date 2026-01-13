@@ -25,8 +25,10 @@ services:
 
   game-engine:
     build:
-      context: ./services/engine
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: services/engine/Dockerfile.dev
+    volumes:
+      - .:/app
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
     deploy:
@@ -38,14 +40,26 @@ services:
 
   wallet-service:
     build:
-      context: ./services/wallet
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: services/wallet/Dockerfile.dev
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
     depends_on:
       - temporal
+    networks:
+      - rgs-network
+
+  shared-workflows:
+    build:
+      context: .
+      dockerfile: services/shared-workflows/Dockerfile.dev
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      - temporal
+      - wallet-service
     networks:
       - rgs-network
 
