@@ -3,6 +3,9 @@ import { MathProfile } from './types';
 export const SLOT_96: MathProfile = {
   name: 'Slot 96%',
   rtp: 96.0,
+  rows: 4,
+  cols: 5,
+  wildSymbolId: 7,
   reel_strips: [
     [1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6],
     [1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6],

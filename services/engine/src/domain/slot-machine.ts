@@ -1,5 +1,6 @@
 import { Generator } from './rng';
 import { MathProfile, SpinResult, WinLine } from './types';
+import { Money } from '@rgs/utils/src/Money';
 
 export class SlotMachine {
   constructor(
@@ -12,7 +13,9 @@ export class SlotMachine {
       throw new Error(`invalid bet amount: ${betAmount}`);
     }
 
-    const grid: number[][] = Array.from({ length: 4 }, () => Array(5).fill(0));
+    const { rows, cols, wildSymbolId, reel_strips, paylines, pay_table } = this.profile;
+
+    const grid: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
     const result: SpinResult = {
       grid,
       winAmount: 0,
@@ -21,20 +24,20 @@ export class SlotMachine {
     };
 
     // 1. Generate Grid using ReelStrips
-    if (this.profile.reel_strips.length !== 5) {
-      // Fallback to random if no strips
-      for (let r = 0; r < 4; r++) {
-        for (let c = 0; c < 5; c++) {
+    if (reel_strips.length < cols) {
+      // Fallback to random if no strips or insufficient strips
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
           grid[r][c] = (await this.rng.intn(6)) + 1;
         }
       }
     } else {
-      for (let c = 0; c < 5; c++) {
-        const strip = this.profile.reel_strips[c];
+      for (let c = 0; c < cols; c++) {
+        const strip = reel_strips[c];
         if (!strip || strip.length === 0) continue;
 
         const idx = await this.rng.intn(strip.length);
-        for (let r = 0; r < 4; r++) {
+        for (let r = 0; r < rows; r++) {
           const symbolIdx = (idx + r) % strip.length;
           grid[r][c] = strip[symbolIdx];
         }
@@ -42,49 +45,58 @@ export class SlotMachine {
     }
 
     // 2. Evaluate Paylines
-    if (this.profile.paylines.length > 0) {
-      for (let lineIdx = 0; lineIdx < this.profile.paylines.length; lineIdx++) {
-        const coords = this.profile.paylines[lineIdx];
-        if (coords.length < 5) continue;
+    if (paylines.length > 0) {
+      const numLines = paylines.length;
+      const lineBetCents = Math.floor(betAmount / numLines);
+      let totalWinMoney = Money.fromMinor(0);
 
-        const firstSym = grid[coords[0]][0];
-        let count = 1;
-        for (let c = 1; c < 5; c++) {
-          const r = coords[c];
-          const sym = grid[r][c];
+      for (let lineIdx = 0; lineIdx < numLines; lineIdx++) {
+        const coords = paylines[lineIdx];
+        if (coords.length < cols) continue;
 
-          // TODO: Handle Wilds
-          if (sym === firstSym) {
+        // Find the first non-wild symbol as the target
+        let targetSymbol = wildSymbolId;
+        for (let c = 0; c < cols; c++) {
+          const sym = grid[coords[c]][c];
+          if (sym !== wildSymbolId) {
+            targetSymbol = sym;
+            break;
+          }
+        }
+
+        // Count matches starting from left
+        let count = 0;
+        for (let c = 0; c < cols; c++) {
+          const sym = grid[coords[c]][c];
+          if (sym === targetSymbol || sym === wildSymbolId) {
             count++;
           } else {
             break;
           }
         }
 
-        // Lookup Win
-        if (count >= 3) {
-          const payouts = this.profile.pay_table[firstSym];
-          if (payouts) {
-            const payoutMult = payouts[count];
-            if (payoutMult !== undefined) {
-              const numLines = this.profile.paylines.length;
-              const lineBet = Math.floor(betAmount / numLines);
-              const winAmount = payoutMult * (lineBet || 1);
-
-              if (winAmount > 0) {
-                result.isWin = true;
-                result.winAmount += winAmount;
-                result.winLines.push({
-                  lineIndex: lineIdx,
-                  symbol: firstSym,
-                  count,
-                  amount: winAmount,
-                });
-              }
+        // Lookup Win in pay table
+        const payouts = pay_table[targetSymbol];
+        if (payouts) {
+          const payoutMult = payouts[count];
+          if (payoutMult !== undefined && payoutMult > 0) {
+            const lineWinAmount = payoutMult * (lineBetCents || 1);
+            if (lineWinAmount > 0) {
+              const lineWinMoney = Money.fromMinor(lineWinAmount);
+              totalWinMoney = totalWinMoney.add(lineWinMoney);
+              
+              result.isWin = true;
+              result.winLines.push({
+                lineIndex: lineIdx,
+                symbol: targetSymbol,
+                count,
+                amount: lineWinAmount,
+              });
             }
           }
         }
       }
+      result.winAmount = totalWinMoney.toMinor();
     }
 
     return result;

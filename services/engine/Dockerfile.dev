@@ -10,6 +10,7 @@ COPY tsconfig.base.json ./
 # Copy specific services and packages
 COPY services/engine ./services/engine
 COPY packages/shared/types ./packages/shared/types
+COPY packages/shared/utils ./packages/shared/utils
 
 # Install dependencies (using root package-lock.json if available)
 RUN npm install
