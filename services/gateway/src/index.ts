@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import temporalPlugin from './plugins/temporal.js';
 import healthRoutes from './routes/health.js';
 import spinRoutes from './routes/spin.js';
+import websocketRoutes from './routes/websocket.js';
 
 const fastify = Fastify({
   logger: {
@@ -27,8 +28,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Auth Middleware (preHandler hook)
 fastify.addHook('preHandler', async (request, reply) => {
-  // Skip auth for health check
-  if (request.url === '/health') return;
+  // Skip auth for health check and WebSocket (handled separately)
+  if (request.url === '/health' || request.url === '/ws') return;
 
   const authHeader = request.headers.authorization;
   if (!authHeader) {
@@ -52,6 +53,7 @@ fastify.addHook('preHandler', async (request, reply) => {
 // Register routes
 await fastify.register(healthRoutes);
 await fastify.register(spinRoutes);
+await fastify.register(websocketRoutes);
 
 const start = async () => {
   try {
