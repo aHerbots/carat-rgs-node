@@ -1,3 +1,22 @@
-FROM node:22-alpine
+FROM node:22-slim
+
 WORKDIR /app
-CMD ["sh", "-c", "echo 'Wallet Service starting...' && tail -f /dev/null"]
+
+# Copy root workspace files
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY tsconfig.base.json ./
+
+# Copy specific services and packages
+COPY services/wallet ./services/wallet
+COPY packages/shared ./packages/shared
+
+# Install dependencies (using root package-lock.json if available)
+RUN npm install
+
+WORKDIR /app/services/wallet
+
+# Generate Prisma client
+RUN npx prisma generate
+
+CMD ["npm", "run", "dev"]

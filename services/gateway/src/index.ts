@@ -1,12 +1,12 @@
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
-import { createClient } from '@supabase/supabase-js';
 import temporalPlugin from './plugins/temporal.js';
 import healthRoutes from './routes/health.js';
 import spinRoutes from './routes/spin.js';
 import websocketRoutes from './routes/websocket.js';
 
 const fastify = Fastify({
+  pluginTimeout: 3000,
   logger: {
     transport: {
       target: 'pino-pretty',
@@ -21,33 +21,26 @@ const fastify = Fastify({
 await fastify.register(websocket);
 await fastify.register(temporalPlugin);
 
-// Supabase Client Setup
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Auth Middleware (preHandler hook)
+// Auth Middleware (Mocked for local development without Supabase)
 fastify.addHook('preHandler', async (request, reply) => {
   // Skip auth for health check and WebSocket (handled separately)
   if (request.url === '/health' || request.url === '/ws') return;
 
   const authHeader = request.headers.authorization;
   if (!authHeader) {
-    reply.code(401).send({ error: 'Unauthorized: Missing token' });
+    // For local dev, we might want to allow default player if no header
+    (request as any).user = { id: '00000000-0000-0000-0000-000000000000', email: 'dev@example.com' };
     return;
   }
 
   const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
-    fastify.log.warn({ error }, 'Authentication failed');
-    reply.code(401).send({ error: 'Unauthorized: Invalid token' });
-    return;
-  }
-
-  // Attach user to request for downstream routes
-  (request as any).user = user;
+  
+  // Mock user from token or just return a default dev user
+  // In a real system without Supabase, you'd verify a JWT here
+  (request as any).user = { 
+    id: token === 'test-token' ? '00000000-0000-0000-0000-000000000000' : token,
+    email: 'dev@example.com' 
+  };
 });
 
 // Register routes

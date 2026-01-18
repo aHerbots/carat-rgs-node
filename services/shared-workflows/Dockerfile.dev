@@ -9,7 +9,9 @@ COPY tsconfig.base.json ./
 
 # Copy specific services and packages
 COPY services/shared-workflows ./services/shared-workflows
-COPY packages/shared/types ./packages/shared/types
+COPY services/engine ./services/engine
+COPY services/wallet ./services/wallet
+COPY packages/shared ./packages/shared
 
 # Install dependencies (using root package-lock.json if available)
 RUN npm install

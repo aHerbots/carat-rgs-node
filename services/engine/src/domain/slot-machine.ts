@@ -76,11 +76,11 @@ export class SlotMachine {
         }
 
         // Lookup Win in pay table
-        const payouts = pay_table[targetSymbol];
+        const payouts = pay_table[targetSymbol.toString()];
         if (payouts) {
-          const payoutMult = payouts[count];
+          const payoutMult = payouts[count.toString()];
           if (payoutMult !== undefined && payoutMult > 0) {
-            const lineWinAmount = payoutMult * (lineBetCents || 1);
+            const lineWinAmount = payoutMult * lineBetCents;
             if (lineWinAmount > 0) {
               const lineWinMoney = Money.fromMinor(lineWinAmount);
               totalWinMoney = totalWinMoney.add(lineWinMoney);

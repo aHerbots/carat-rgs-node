@@ -1,5 +1,4 @@
 import WebSocket from 'ws';
-import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import pino from 'pino';
 
@@ -12,32 +11,11 @@ const logger = pino({
 });
 
 const WS_URL = process.env.WS_URL || 'ws://localhost:3000/ws';
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
-const PLAYER_ID = 'e2e-test-player-' + Math.random().toString(36).substring(7);
-const INITIAL_BALANCE = 100000; // 1000.00 in cents
+const PLAYER_ID = '00000000-0000-0000-0000-000000000001';
 
 async function setupPlayer() {
-  logger.info({ PLAYER_ID }, 'Setting up test player');
-  
-  // Create player and initial balance
-  // We'll use the 'deposit' transaction type to set initial balance
-  const { error: txError } = await supabase.from('transactions').insert({
-    player_id: PLAYER_ID,
-    amount: INITIAL_BALANCE,
-    type: 'deposit',
-    reference_id: 'initial-deposit-' + PLAYER_ID,
-  });
-
-  if (txError) {
-    logger.error({ txError }, 'Failed to setup player balance');
-    process.exit(1);
-  }
-  
-  logger.info('Test player setup complete');
+  logger.info({ PLAYER_ID }, 'Skipping player setup, using seeded player');
 }
 
 async function getBalance() {
@@ -60,16 +38,15 @@ async function runE2E() {
   const startBalance = await getBalance();
   logger.info({ startBalance }, 'Starting balance');
 
-  const ws = new WebSocket(WS_URL);
+  const ws = new WebSocket(`${WS_URL}?playerId=${PLAYER_ID}`);
 
   ws.on('open', () => {
     logger.info('WebSocket connected');
     
     const spinRequest = {
-      action: 'SPIN',
+      type: 'spin',
+      gameId: 'slot-96',
       payload: {
-        playerId: PLAYER_ID,
-        gameId: 'slot-96',
         betAmount: 100, // 1.00
       }
     };
@@ -82,7 +59,7 @@ async function runE2E() {
     const message = JSON.parse(data.toString());
     logger.info({ message }, 'Received message');
 
-    if (message.type === 'SPIN_RESULT') {
+    if (message.type === 'slotState') {
       logger.info('Spin completed successfully');
       
       // Wait a bit for Temporal activities to finish settling if needed 
@@ -109,8 +86,8 @@ async function runE2E() {
       }, 1000);
     }
 
-    if (message.type === 'ERROR') {
-      logger.error({ error: message.error }, 'Spin failed');
+    if (message.type === 'error') {
+      logger.error({ error: message.payload?.message }, 'Spin failed');
       ws.close();
       process.exit(1);
     }

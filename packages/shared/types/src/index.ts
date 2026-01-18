@@ -42,6 +42,8 @@ export interface SpinResult {
   winAmount: number;
   isWin: boolean;
   winLines: WinLine[];
+  balance?: number; // Optional here to avoid breaking engine-only logic, but will be populated by workflow
+  error?: any;
 }
 
 /**

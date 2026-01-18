@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Transaction {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  playerId     String   @map("player_id") @db.Uuid
+  amount       BigInt
+  type         String
+  referenceId  String   @map("reference_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([referenceId, type], name: "idx_transactions_reference_type")
+  @@index([playerId], name: "idx_transactions_player_id")
+  @@map("transactions")
+}

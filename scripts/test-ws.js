@@ -6,9 +6,9 @@ ws.on('open', () => {
   console.log('Connected to Gateway WebSocket');
   
   const spinRequest = {
-    action: 'SPIN',
+    type: 'spin',
     payload: {
-      playerId: 'test-player-123',
+      playerId: '00000000-0000-0000-0000-000000000001',
       gameId: 'slot-96-profile',
       betAmount: 100
     }

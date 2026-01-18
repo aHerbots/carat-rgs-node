@@ -4,9 +4,13 @@ export interface MathProfile {
   rows: number;
   cols: number;
   wildSymbolId: number;
-  reel_strips: number[][]; // arrays of symbol IDs per column
-  paylines: number[][];    // List of coordinate sequences (row indices for each column)
-  pay_table: Record<number, Record<number, number>>; // SymbolID -> Count -> Payout (multiplier)
+  reel_strips: number[][];
+  paylines: number[][];
+  pay_table: {
+    [symbolId: string]: {
+      [count: string]: number;
+    };
+  };
 }
 
 export interface WinLine {
@@ -21,4 +25,6 @@ export interface SpinResult {
   winAmount: number; // Win amount in cents
   isWin: boolean;
   winLines: WinLine[];
+  balance?: number;
+  error?: any;
 }

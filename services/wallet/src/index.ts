@@ -1,4 +1,4 @@
-import { Worker } from "@temporalio/worker";
+import { NativeConnection, Worker } from "@temporalio/worker";
 import * as activities from "./activities/wallet-activities.js";
 import pino from "pino";
 import dotenv from "dotenv";
@@ -17,10 +17,14 @@ async function run() {
   logger.info({ temporalAddress }, "Starting Wallet Activity Worker");
 
   try {
+    const connection = await NativeConnection.connect({
+      address: temporalAddress,
+    });
+
     const worker = await Worker.create({
+      connection,
       activities,
       taskQueue: "wallet-task-queue",
-      address: temporalAddress,
     });
 
     logger.info("Wallet Worker connected to Temporal");

@@ -5,18 +5,22 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@rgs/types": "*",
-    "@supabase/supabase-js": "^2.48.1",
     "@temporalio/worker": "^1.9.3",
     "@temporalio/activity": "^1.9.3",
+    "@prisma/client": "^6.2.1",
     "dinero.js": "^2.0.0-alpha.14",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "prisma": "^6.2.1"
   }
 }

@@ -1,5 +1,5 @@
 import { Context } from "@temporalio/activity";
-import { supabase } from "../db/supabase.js";
+import prisma from "../db/db.js";
 import { TransactionType } from "@rgs/types";
 import pino from "pino";
 
@@ -9,83 +9,87 @@ const logger = pino({
   },
 });
 
+export async function getBalance(playerId: string): Promise<number> {
+  const result = await prisma.transaction.aggregate({
+    where: {
+      playerId: playerId,
+    },
+    _sum: {
+      amount: true,
+    },
+  });
+
+  const balance = result._sum.amount || BigInt(0);
+  return Number(balance);
+}
+
 export async function reserveFunds(
   playerId: string,
   amount: number,
   referenceId: string
-): Promise<void> {
+): Promise<number> {
   logger.info({ playerId, amount, referenceId }, "Reserving funds");
 
-  // In a real system, we'd use a stored procedure for atomic balance check + insert.
-  // For this implementation, we'll use a transaction via Supabase RPC or multiple calls if needed.
-  // Here we use the unique constraint on (reference_id, type) for idempotency.
-
   // 1. Check balance
-  const { data: balanceData, error: balanceError } = await supabase
-    .from("player_balances")
-    .select("balance")
-    .eq("player_id", playerId)
-    .single();
-
-  if (balanceError && balanceError.code !== "PGRST116") {
-    // PGRST116 is 'no rows found', which might mean 0 balance if they never had a transaction
-    throw new Error(`Failed to fetch balance: ${balanceError.message}`);
-  }
-
-  const currentBalance = balanceData?.balance || 0;
+  const currentBalance = await getBalance(playerId);
   if (currentBalance < amount) {
     throw new Error("Insufficient funds");
   }
 
   // 2. Insert 'bet' transaction
-  // amount is negative for bets
-  const { error: txError } = await supabase.from("transactions").insert({
-    player_id: playerId,
-    amount: -Math.abs(amount),
-    type: "bet" as TransactionType,
-    reference_id: referenceId,
-  });
-
-  if (txError) {
-    if (txError.code === "23505") {
-      // Unique violation - already reserved
+  try {
+    await prisma.transaction.create({
+      data: {
+        playerId: playerId,
+        amount: BigInt(-Math.abs(amount)),
+        type: "bet",
+        referenceId: referenceId,
+      },
+    });
+  } catch (error: any) {
+    // Prisma unique constraint violation code is 'P2002'
+    if (error.code === "P2002") {
       logger.warn({ referenceId }, "Funds already reserved (idempotent)");
-      return;
+      return await getBalance(playerId);
     }
-    throw new Error(`Failed to reserve funds: ${txError.message}`);
+    throw new Error(`Failed to reserve funds: ${error.message}`);
   }
 
   logger.info({ playerId, referenceId }, "Funds reserved successfully");
+  return await getBalance(playerId);
 }
 
 export async function settleFunds(
   playerId: string,
   amount: number,
   referenceId: string
-): Promise<void> {
+): Promise<number> {
   if (amount <= 0) {
     logger.info({ referenceId }, "No win to settle");
-    return;
+    return await getBalance(playerId);
   }
 
   logger.info({ playerId, amount, referenceId }, "Settling funds");
 
-  const { error: txError } = await supabase.from("transactions").insert({
-    player_id: playerId,
-    amount: Math.abs(amount),
-    type: "win" as TransactionType,
-    reference_id: referenceId,
-  });
-
-  if (txError) {
-    if (txError.code === "23505") {
+  try {
+    await prisma.transaction.create({
+      data: {
+        playerId: playerId,
+        amount: BigInt(Math.abs(amount)),
+        type: "win",
+        referenceId: referenceId,
+      },
+    });
+  } catch (error: any) {
+    if (error.code === "P2002") {
       logger.warn({ referenceId }, "Funds already settled (idempotent)");
-      return;
+      return await getBalance(playerId);
     }
-    throw new Error(`Failed to settle funds: ${txError.message}`);
+    throw new Error(`Failed to settle funds: ${error.message}`);
   }
 
   logger.info({ playerId, referenceId }, "Funds settled successfully");
+  return await getBalance(playerId);
 }
 
 export async function refundBet(
@@ -96,34 +100,33 @@ export async function refundBet(
   logger.info({ playerId, amount, referenceId }, "Refunding bet");
 
   // Check if a bet was actually placed
-  const { data: betData, error: betError } = await supabase
-    .from("transactions")
-    .select("id")
-    .eq("reference_id", referenceId)
-    .eq("type", "bet")
-    .single();
-
-  if (betError) {
-    if (betError.code === "PGRST116") {
-      logger.warn({ referenceId }, "No bet found to refund (compensation skip)");
-      return;
-    }
-    throw new Error(`Failed to check bet for refund: ${betError.message}`);
-  }
-
-  const { error: txError } = await supabase.from("transactions").insert({
-    player_id: playerId,
-    amount: Math.abs(amount), // refund is positive
-    type: "refund" as TransactionType,
-    reference_id: referenceId,
+  const bet = await prisma.transaction.findFirst({
+    where: {
+      referenceId: referenceId,
+      type: "bet",
+    },
   });
 
-  if (txError) {
-    if (txError.code === "23505") {
+  if (!bet) {
+    logger.warn({ referenceId }, "No bet found to refund (compensation skip)");
+    return;
+  }
+
+  try {
+    await prisma.transaction.create({
+      data: {
+        playerId: playerId,
+        amount: BigInt(Math.abs(amount)),
+        type: "refund",
+        referenceId: referenceId,
+      },
+    });
+  } catch (error: any) {
+    if (error.code === "P2002") {
       logger.warn({ referenceId }, "Bet already refunded (idempotent)");
       return;
     }
-    throw new Error(`Failed to refund bet: ${txError.message}`);
+    throw new Error(`Failed to refund bet: ${error.message}`);
   }
 
   logger.info({ playerId, referenceId }, "Bet refunded successfully");
