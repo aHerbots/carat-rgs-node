@@ -1,0 +1,145 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------
+  # 1. CORE SERVICES
+  # ----------------------------------------------------------------
+  
+  gateway-service:
+    build:
+      context: ./carat-rgs-node
+      dockerfile: services/gateway/Dockerfile.dev
+    volumes:
+      - ./carat-rgs-node:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - TEMPORAL_ADDRESS=temporal:7233
+      - DATABASE_URL=postgres://postgres:${SUPABASE_DB_PASSWORD:-postgres}@database:5432/postgres
+    depends_on:
+      redis:
+        condition: service_started
+      temporal:
+        condition: service_healthy
+    networks:
+      - rgs-network
+
+  game-engine:
+    build:
+      context: ./carat-rgs-node
+      dockerfile: services/engine/Dockerfile.dev
+    volumes:
+      - ./carat-rgs-node:/app
+      - /app/node_modules
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    deploy:
+      replicas: 2
+    depends_on:
+      temporal:
+        condition: service_healthy
+    networks:
+      - rgs-network
+
+  wallet-service:
+    build:
+      context: ./carat-rgs-node
+      dockerfile: services/wallet/Dockerfile.dev
+    volumes:
+      - ./carat-rgs-node:/app
+      - /app/node_modules
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - DATABASE_URL=postgres://postgres:${SUPABASE_DB_PASSWORD:-postgres}@database:5432/postgres
+    depends_on:
+      temporal:
+        condition: service_healthy
+    networks:
+      - rgs-network
+
+  shared-workflows:
+    build:
+      context: ./carat-rgs-node
+      dockerfile: services/shared-workflows/Dockerfile.dev
+    volumes:
+      - ./carat-rgs-node:/app
+      - /app/node_modules
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      temporal:
+        condition: service_healthy
+      wallet-service:
+        condition: service_started
+    networks:
+      - rgs-network
+
+  # ----------------------------------------------------------------
+  # 2. INFRASTRUCTURE & PERSISTENCE
+  # ----------------------------------------------------------------
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - rgs-network
+
+  # Unified Database (Standard Postgres + Temporal Store)
+  database:
+    image: postgres:15-alpine
+    ports:
+      - "54325:5432"
+    environment:
+      - POSTGRES_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres}
+      # This script will create the temporal database on startup
+      - APP_DB=temporal
+    volumes:
+      - database_data:/var/lib/postgresql/data
+      - ./carat-rgs-node/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rgs-network
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=${SUPABASE_DB_PASSWORD:-postgres}
+      - POSTGRES_SEEDS=database
+      - DB_NAME=temporal
+      - VISIBILITY_DB_NAME=temporal
+      - SKIP_DB_CREATE=false # Let Temporal create it if missing
+      - BIND_ON_IP=0.0.0.0
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 7233 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - rgs-network
+
+networks:
+  rgs-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  database_data:
