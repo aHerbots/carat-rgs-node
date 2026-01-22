@@ -12,6 +12,8 @@ export interface SimulationReport {
   volatility: number;
 }
 
+const FIXED_BET = 100; // Fixed bet of 100 cents for simulation
+
 export class Simulator {
   constructor(
     private readonly profile: MathProfile,
@@ -24,11 +26,12 @@ export class Simulator {
     let totalWin = 0;
     let winCount = 0;
     const wins: number[] = [];
+    const winMultipliers: number[] = [];
 
     const machine = new SlotMachine(this.rng, this.profile);
 
     for (let i = 0; i < iterations; i++) {
-      const bet = 100; // Fixed bet of 100 cents
+      const bet = FIXED_BET;
       totalBet += bet;
 
       const result = await machine.spin(bet);
@@ -37,15 +40,16 @@ export class Simulator {
         winCount++;
       }
       wins.push(result.winAmount);
+      winMultipliers.push(result.winAmount / bet);
     }
 
     const durationMs = Date.now() - start;
     const rtp = totalBet > 0 ? (totalWin / totalBet) * 100 : 0;
     const hitRate = (winCount / iterations) * 100;
-    const mean = totalWin / iterations;
+    const meanMultiplier = totalWin / totalBet;
     const volatility = Math.sqrt(
-      wins.map((w) => Math.pow(w - mean, 2)).reduce((a, b) => a + b) /
-        wins.length
+      winMultipliers.map((w) => Math.pow(w - meanMultiplier, 2)).reduce((a, b) => a + b) /
+        winMultipliers.length
     );
 
     return {
